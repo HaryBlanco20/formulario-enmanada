@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formulario de Admisión Canina - En Manada</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="max-w-5xl mx-auto p-6 bg-white rounded shadow-md mt-6 mb-12">
+    <h1 class="text-3xl font-bold text-blue-700 text-center mb-6">Formulario de Admisión - En Manada</h1>
+    <form id="admission-form" class="space-y-6">
+
+      <!-- DATOS DEL CANINO -->
+      <section>
+        <h2 class="text-xl font-semibold text-green-700 mb-2">🐶 Datos del Canino</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" name="dog_name" placeholder="Nombre" class="input" required />
+          <input type="text" name="breed" placeholder="Raza" class="input" required />
+          <input type="text" name="age" placeholder="Edad" class="input" required />
+          <input type="text" name="sex" placeholder="Sexo" class="input" required />
+          <input type="text" name="color" placeholder="Color/Señas particulares" class="input" />
+
+          <div>
+            <label class="block text-gray-600">¿Está esterilizado?</label>
+            <select name="sterilized" class="input">
+              <option>Si</option>
+              <option>No</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-gray-600">¿Tiene microchip?</label>
+            <select name="microchip" class="input">
+              <option>Si</option>
+              <option>No</option>
+            </select>
+          </div>
+
+          <input type="text" name="microchip_number" placeholder="Número de microchip (si aplica)" class="input" />
+
+          <div>
+            <label class="block text-gray-600">¿Tiene placa de identificación?</label>
+            <select name="tag" class="input">
+              <option>Si</option>
+              <option>No</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- DATOS DEL ACUDIENTE -->
+      <section>
+        <h2 class="text-xl font-semibold text-green-700 mb-2 mt-8">👤 Datos del Acudiente</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" name="owner_name" placeholder="Nombre completo" class="input" required />
+
+          <select name="id_type" class="input">
+            <option disabled selected>Tipo de documento</option>
+            <option value="Cedula">Cédula</option>
+            <option value="Pasaporte">Pasaporte</option>
+            <option value="Carné de extranjería">Carné de extranjería</option>
+            <option value="NIT">NIT</option>
+          </select>
+
+          <input type="text" name="id_number" placeholder="Número del documento" class="input" required />
+          <input type="email" name="email" placeholder="Correo electrónico" class="input" required />
+          <input type="tel" name="phone" placeholder="Teléfono de contacto (con WhatsApp)" class="input" required />
+          <input type="text" name="pickup_address" placeholder="Dirección del lugar de recogida y entrega" class="input" required />
+          <input type="text" name="neighborhood" placeholder="Barrio y ciudad" class="input" required />
+          <input type="text" name="alt_address" placeholder="Otra dirección de entrega (si aplica)" class="input" />
+          <input type="text" name="alt_contact" placeholder="Nombre y teléfono de responsable alterno" class="input" />
+        </div>
+      </section>
+
+      <!-- SERVICIO A SOLICITAR -->
+      <section>
+        <h2 class="text-xl font-semibold text-green-700 mb-2 mt-8">📋 Servicio a Solicitar</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label>Tipo de servicio:
+            <select name="service_type" class="input" id="service_type">
+              <option disabled selected>Seleccione una opción</option>
+              <option value="Hotel">Hotel</option>
+              <option value="Colegio">Colegio</option>
+              <option value="Internado">Internado</option>
+              <option value="Semi-internado">Semi-internado</option>
+            </select>
+          </label>
+
+          <div id="hotel_fields" class="hidden">
+            <input type="date" name="hotel_start" class="input" placeholder="Fecha de ingreso" />
+            <input type="date" name="hotel_end" class="input" placeholder="Fecha de salida" />
+          </div>
+
+          <div id="colegio_fields" class="hidden">
+            <label>Plan de colegio:
+              <select name="colegio_plan" class="input" id="colegio_plan">
+                <option disabled selected>Seleccione un plan</option>
+                <option value="1dia">1 día a la semana</option>
+                <option value="2dias">2 días a la semana</option>
+                <option value="3dias">3 días a la semana</option>
+                <option value="4dias">4 días a la semana</option>
+                <option value="full">Full de Lunes a Viernes</option>
+              </select>
+            </label>
+            <div id="colegio_dates"></div>
+          </div>
+
+          <div id="internado_fields" class="hidden">
+            <input type="date" name="internado_start" class="input" placeholder="Fecha de inicio (Internado)" />
+          </div>
+
+          <div id="semi_fields" class="hidden">
+            <input type="date" name="semi_start" class="input" placeholder="Fecha de inicio (Semi-internado)" />
+          </div>
+        </div>
+      </section>
+
+      <div class="flex justify-center">
+        <button type="submit" class="bg-blue-700 text-white px-6 py-2 rounded hover:bg-blue-800">Enviar Formulario</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2.6.4/dist/email.min.js"></script>
+  <script>
+    emailjs.init("YOUR_USER_ID");
+
+    document.getElementById("admission-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      emailjs.sendForm("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", this).then(
+        function () {
+          alert("Formulario enviado con éxito");
+          document.getElementById("admission-form").reset();
+        },
+        function (error) {
+          alert("Error al enviar el formulario");
+        }
+      );
+    });
+
+    document.getElementById("service_type").addEventListener("change", function () {
+      const hotel = document.getElementById("hotel_fields");
+      const colegio = document.getElementById("colegio_fields");
+      const internado = document.getElementById("internado_fields");
+      const semi = document.getElementById("semi_fields");
+
+      hotel.classList.add("hidden");
+      colegio.classList.add("hidden");
+      internado.classList.add("hidden");
+      semi.classList.add("hidden");
+
+      switch (this.value) {
+        case "Hotel":
+          hotel.classList.remove("hidden");
+          break;
+        case "Colegio":
+          colegio.classList.remove("hidden");
+          break;
+        case "Internado":
+          internado.classList.remove("hidden");
+          break;
+        case "Semi-internado":
+          semi.classList.remove("hidden");
+          break;
+      }
+    });
+
+    document.getElementById("colegio_plan").addEventListener("change", function () {
+      const container = document.getElementById("colegio_dates");
+      container.innerHTML = "";
+
+      const input = document.createElement("input");
+      input.type = "date";
+      input.name = "colegio_fecha_inicio";
+      input.className = "input my-2";
+      container.appendChild(input);
+
+      if (this.value !== "full") {
+        const dias = document.createElement("input");
+        dias.type = "text";
+        dias.name = "dias_asistencia";
+        dias.placeholder = "Días que asistirá al colegio";
+        dias.className = "input";
+        container.appendChild(dias);
+      }
+    });
+  </script>
+
+  <style>
+    .input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</body>
+</html>
