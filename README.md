@@ -1,8 +1,5 @@
 # GymVe
 
-<<<<<<< HEAD
-Proyecto en blanco: empezamos desde cero.
-=======
 App móvil privada para uso familiar (iPhone y Android), **sin publicación** en App Store ni Google Play. Esta fase incluye solo **inicio de sesión** con correo y contraseña.
 
 El código de la app está en [`mobile/`](mobile/).
@@ -91,11 +88,6 @@ npx eas build --platform ios --profile preview
 
 Documentación: [Internal distribution](https://docs.expo.dev/build/internal-distribution/), [Android APK](https://docs.expo.dev/build-reference/apk/), [iOS ad hoc](https://docs.expo.dev/build/internal-distribution/#ad-hoc-distribution).
 
-## Otros archivos en el repo
-
-- `index.html` — formulario legacy de otro proyecto (En Manada); no forma parte de GymVe.
-
 ## Próximos pasos (fuera de alcance actual)
 
 Rutinas, progreso, perfiles — tras estabilizar login y builds internos.
->>>>>>> ed86b7b (feat(gymve): Expo login scaffold with Supabase Auth)
