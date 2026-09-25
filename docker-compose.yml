@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gymve-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gymve
+      POSTGRES_PASSWORD: gymve
+      POSTGRES_DB: gymve
+    ports:
+      - "5432:5432"
+    volumes:
+      - gymve_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gymve -d gymve"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  gymve_pgdata:

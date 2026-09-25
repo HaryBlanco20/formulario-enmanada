@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Inicio — GymVe{% endblock %}
+{% block content %}
+<header class="topbar">
+  <div class="brand-inline">
+    <div class="brand-mark sm" aria-hidden="true">GV</div>
+    <span>GymVe</span>
+  </div>
+</header>
+
+<main class="card home-card">
+  <p class="welcome-label">Bienvenido/a</p>
+  <h1 class="welcome-name">{{ user.display_name }}</h1>
+  <p class="welcome-email">{{ user.email }}</p>
+
+  <section class="home-panel">
+    <h2>Tu espacio</h2>
+    <p>
+      Has iniciado sesión correctamente. Aquí irán rutinas, progreso y el resto del módulo GymVe.
+    </p>
+  </section>
+
+  <form method="post" action="/logout">
+    <button type="submit" class="btn btn-default">Cerrar sesión</button>
+  </form>
+</main>
+{% endblock %}

@@ -1,0 +1,62 @@
+from datetime import UTC, datetime, timedelta
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from app.config import get_jwt_secret, normalize_email
+from app.db import get_db
+from app.models import User
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_DAYS = 7
+
+
+def create_access_token(email: str) -> str:
+    now = datetime.now(UTC)
+    payload = {
+        "sub": normalize_email(email),
+        "iat": now,
+        "exp": now + timedelta(days=JWT_EXPIRE_DAYS),
+    }
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> str | None:
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        sub = payload.get("sub")
+        return normalize_email(str(sub)) if sub else None
+    except jwt.PyJWTError:
+        return None
+
+
+def get_user_by_email(db: Session, email: str) -> User | None:
+    return db.query(User).filter(User.email == normalize_email(email)).one_or_none()
+
+
+def get_current_api_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No autenticado.",
+        )
+    email = decode_access_token(credentials.credentials)
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesión inválida o expirada.",
+        )
+    user = get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario no encontrado.",
+        )
+    return user

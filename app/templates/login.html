@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión — GymVe{% endblock %}
+{% block content %}
+<header class="brand">
+  <div class="brand-mark" aria-hidden="true">GV</div>
+  <h1>GymVe</h1>
+  <p class="subtitle">Acceso familiar</p>
+</header>
+
+<main class="card">
+  {% if error %}
+  <div class="alert alert-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login" id="login-form" novalidate>
+    <label class="field">
+      <span>Correo electrónico</span>
+      <input
+        type="email"
+        name="email"
+        autocomplete="username"
+        inputmode="email"
+        required
+        value="{{ email or '' }}"
+        placeholder="tu@correo.com"
+      />
+    </label>
+
+    <label class="field">
+      <span>Contraseña</span>
+      <input
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        required
+        minlength="10"
+        placeholder="Mín. 10 caracteres y un símbolo"
+        data-policy-msg="La contraseña debe tener al menos 10 caracteres e incluir un carácter especial."
+      />
+    </label>
+
+    <p class="hint">
+      La contraseña debe tener al menos <strong>10 caracteres</strong> e incluir al menos un
+      <strong>carácter especial</strong> (por ejemplo <code>!</code>, <code>@</code>, <code>#</code>).
+    </p>
+
+    <button type="submit" class="btn btn-primary">Entrar</button>
+  </form>
+</main>
+{% endblock %}

@@ -1,93 +1,96 @@
 # GymVe
 
-App móvil privada para uso familiar (iPhone y Android), **sin publicación** en App Store ni Google Play. Esta fase incluye solo **inicio de sesión** con correo y contraseña.
+Aplicación **Python** privada para la familia (iPhone y Android), **sin publicación** en App Store ni Play Store.
 
-El código de la app está en [`mobile/`](mobile/).
+**Stack canónico:** **FastAPI + PostgreSQL** (servidor) y **Flet** (APK Android). **iPhone:** web/PWA en Safari. Login en español, 4 usuarios, contraseña ≥10 caracteres + carácter especial.
 
-## Stack
+> La carpeta [`mobile/`](mobile/) (Expo/React Native + Supabase) quedó **obsoleta** respecto a este README; no la uses para nuevas funciones. El backend Python y Postgres sustituyen Supabase para auth.
 
-- [Expo](https://docs.expo.dev/) (React Native) + TypeScript
-- [Supabase Auth](https://supabase.com/docs/guides/auth) — `signInWithPassword`, sesión persistente con AsyncStorage
+Guía de instalación en celulares: **[docs/instalar-en-celular.md](docs/instalar-en-celular.md)**
+
+## Arquitectura
+
+| Componente | Tecnología | Uso |
+|------------|------------|-----|
+| API + web | FastAPI, SQLAlchemy, Jinja | Login web, `/api/v1/*` para el APK |
+| Base de datos | PostgreSQL 16 (Docker) | Emails y hashes bcrypt |
+| Android (Samsung) | Flet → `flet build apk` | Cliente en `client/` |
+| iOS | Safari PWA | Misma URL `/login` del servidor |
 
 ## Requisitos
 
-- Node.js 20+
-- Cuenta en [Supabase](https://supabase.com/) (plan gratuito basta para 4 usuarios)
-- Para probar en dispositivo: [Expo Go](https://expo.dev/go) (desarrollo) o builds internos (ver más abajo)
+- Python 3.11+
+- Docker y Docker Compose (PostgreSQL local)
+- Para APK: Flutter SDK + JDK (ver guía Flet)
 
-## Configuración de entorno
-
-1. Crea un proyecto en Supabase.
-2. En **Authentication → Providers**, deja activo **Email** (password).
-3. Copia variables de **Project Settings → API**:
+## Puesta en marcha
 
 ```bash
-cd mobile
 cp .env.example .env
-# Edita .env con EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY
+# SESSION_SECRET (≥32 chars) + GYMVE_USER_*_PASSWORD_HASH (4 usuarios)
+
+docker compose up -d
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+python scripts/init_db.py
+python scripts/seed_users.py
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-4. (Opcional) Lista blanca de correos en `EXPO_PUBLIC_ALLOWED_EMAILS` (hasta 4, separados por coma).
+Web: [http://127.0.0.1:8000/login](http://127.0.0.1:8000/login)
 
-## Política de contraseñas
-
-Al crear usuarios en el panel de Supabase (o al validar en la app antes de enviar el formulario):
-
-| Regla | Detalle |
-|--------|---------|
-| Longitud mínima | 10 caracteres |
-| Carácter especial | Al menos uno que **no** sea letra ni dígito (p. ej. `!`, `@`, `#`, `$`) |
-
-Expresión de referencia (TypeScript): ` /^(?=.*[^A-Za-z0-9]).{10,}$/ `
-
-Mensajes en español en [`mobile/src/lib/passwordPolicy.ts`](mobile/src/lib/passwordPolicy.ts).
-
-**No guardes contraseñas reales en el repositorio.** Defínelas solo en el dashboard de Supabase al crear cada usuario.
-
-## Crear los 4 usuarios familiares
-
-1. Supabase → **Authentication → Users → Add user → Create new user**.
-2. Repite para cada miembro (4 cuentas): correo único + contraseña que cumpla la política.
-3. Si usas confirmación de correo, desactívala para pruebas internas (**Authentication → Providers → Email**) o confirma cada usuario manualmente.
-4. Opcional: pon los 4 correos en `EXPO_PUBLIC_ALLOWED_EMAILS` para bloquear otros inicios de sesión.
-
-## Ejecutar en desarrollo
+### Generar hash bcrypt
 
 ```bash
-cd mobile
-npm install
-npx expo start
+python scripts/hash_password.py
 ```
 
-- Escanea el QR con **Expo Go** (Android / iOS).
-- Asegúrate de que el `.env` esté en `mobile/` antes de arrancar (Expo lee `EXPO_PUBLIC_*` al iniciar).
+**No guardes contraseñas en texto plano en el repositorio.** Solo hashes en `.env` (gitignored) o variables de despliegue.
 
-Comprobación de tipos:
+### API (cliente Flet)
+
+```text
+POST /api/v1/login   {"email","password"}  → access_token
+GET  /api/v1/me      Authorization: Bearer …
+```
+
+## Cliente Android (Flet)
 
 ```bash
-cd mobile && npm run typecheck
+pip install -r client/requirements.txt
+cd client
+export GYMVE_API_BASE_URL=http://192.168.1.XX:8000   # opcional en dev
+flet run .                    # prueba en escritorio
+flet build apk -v             # APK sideload (Samsung, sin Play Store)
 ```
 
-## Distribución sin tiendas públicas
+En el Samsung, indica la **URL del API** en la pantalla de login (IP LAN o túnel HTTPS).
 
-| Plataforma | Enfoque recomendado |
-|------------|---------------------|
-| **Desarrollo** | Expo Go + `npx expo start` (misma red o túnel Expo) |
-| **Android (Samsung, etc.)** | [EAS Build](https://docs.expo.dev/build/introduction/) → perfil **preview** o **internal** → instala el **APK** o enlace interno (no hace falta Play Store) |
-| **iOS (iPhone)** | EAS Build con perfil **ad hoc** (UDIDs registrados) o **TestFlight** en modo interno (solo invitados, no listado público en App Store) |
+## Estructura
 
-Pasos generales EAS (cuando quieras builds):
+```text
+app/              Backend FastAPI + plantillas web
+client/           App Flet (APK)
+scripts/          init_db, seed_users, hash_password
+docker-compose.yml
+docs/
+mobile/           Legacy Expo (deprecated)
+index.html        Legacy formulario En Manada
+```
+
+## Calidad
 
 ```bash
-cd mobile
-npx eas-cli login
-npx eas build:configure
-npx eas build --platform android --profile preview
-npx eas build --platform ios --profile preview
+pip install ruff
+ruff check app scripts client/main.py
 ```
 
-Documentación: [Internal distribution](https://docs.expo.dev/build/internal-distribution/), [Android APK](https://docs.expo.dev/build-reference/apk/), [iOS ad hoc](https://docs.expo.dev/build/internal-distribution/#ad-hoc-distribution).
+## Variables de entorno
 
-## Próximos pasos (fuera de alcance actual)
+Ver [.env.example](.env.example): `DATABASE_URL`, `SESSION_SECRET`, usuarios para seed.
 
-Rutinas, progreso, perfiles — tras estabilizar login y builds internos.
+Licencia: uso privado familiar.

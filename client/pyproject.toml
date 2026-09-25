@@ -1,0 +1,16 @@
+[project]
+name = "gymve-client"
+version = "0.1.0"
+description = "Cliente Android GymVe (Flet)"
+requires-python = ">=3.11"
+dependencies = [
+  "flet>=0.24.0",
+  "httpx>=0.27.0",
+]
+
+[tool.flet]
+app = "main.py"
+org = "com.gymve"
+product = "GymVe"
+company = "GymVe"
+copyright = "GymVe"
