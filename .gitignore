@@ -1,4 +1,6 @@
 .env
+docker/caddy/certs/*.pem
+docker/caddy/certs/*.key
 .venv/
 venv/
 __pycache__/

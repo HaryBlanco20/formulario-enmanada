@@ -1,125 +1,131 @@
-# Instalar GymVe en el celular (sin App Store ni Play Store)
+# Instalar GymVe en el celular (Samsung + iPhone)
 
-GymVe usa **Python**: un **servidor API** (FastAPI + PostgreSQL) y, en **Samsung**, un **APK** hecho con **Flet**. En **iPhone** se usa la **web/PWA** en Safari (Apple no permite instalar APKs arbitrarios).
+GymVe es **privado** (sin App Store ni Play Store). Mismo backend **FastAPI + PostgreSQL** para la familia:
+
+| Dispositivo | Cliente | Cómo “instalar” |
+|-------------|---------|------------------|
+| **Samsung (Android)** | APK **Flet** | Sideload del `.apk` + URL del API |
+| **iPhone (iOS)** | **Safari / PWA** | No hay APK; añadir a pantalla de inicio |
+
+Desde un **PC Ubuntu** puedes desarrollar y probar **Samsung** con emulador o APK real; para **iPhone** la vía práctica es un **iPhone físico en la misma red** (o túnel HTTPS), no el simulador iOS (solo en Mac).
 
 ---
 
-## 1. Servidor y base de datos (obligatorio)
+## 1. Backend (obligatorio para ambos)
 
-En la computadora donde corre el backend (PC de casa, mini servidor, etc.):
+En tu PC Ubuntu (o mini servidor):
 
 ```bash
 cd gymve
 cp .env.example .env
-# Edita SESSION_SECRET y los 4 usuarios (hashes bcrypt)
+# Define POSTGRES_*, GYMVE_APP_DB_*, SESSION_SECRET (≥32), hashes de los 4 usuarios
 
-docker compose up -d
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+make dev-up
+# o: ./scripts/dev-up.sh
 
-python scripts/init_db.py
-python scripts/seed_users.py
-
+source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Comprueba: `http://<IP-DE-TU-PC>:8000/health` debe responder `{"status":"ok"}`.
+Comprueba: `http://127.0.0.1:8000/health` → `{"status":"ok"}`.
 
-### Contraseñas de las 4 cuentas
+### HTTPS (recomendado para iPhone y APK en red real)
 
-- Mínimo **10 caracteres** y al menos un **carácter especial** (`!@#$%…`).
-- En el repositorio solo van **hashes bcrypt**; genera uno con:
+iOS exige **HTTPS** para PWA fiable fuera de localhost. Android también conviene HTTPS (cleartext bloqueado por defecto).
 
-```bash
-python scripts/hash_password.py
-```
+Opciones (elige una):
 
-Pega el resultado en `GYMVE_USER_N_PASSWORD_HASH` en tu `.env` y vuelve a ejecutar `python scripts/seed_users.py`.
+1. **Túnel** (rápido, iPhone + Samsung): `cloudflared tunnel --url http://localhost:8000` → URL `https://….trycloudflare.com`
+2. **Caddy local** (dev en Ubuntu): `make dev-proxy` tras generar certs en `docker/caddy/certs/` (ver [seguridad.md](seguridad.md))
+
+Configura `CORS_ORIGINS` en `.env` con la URL HTTPS que uses (Samsung APK + Safari iPhone).
+
+### Contraseñas (4 cuentas)
+
+- Mínimo **10 caracteres** y un **carácter especial**.
+- Solo **hashes bcrypt** en `.env`: `python scripts/hash_password.py` → `GYMVE_USER_N_PASSWORD_HASH` → `python scripts/seed_users.py`.
 
 ---
 
-## 2. Samsung (Android) — APK sideload
+## 2. Instalar en dispositivos (Samsung + iPhone)
 
-### 2.1 Construir el APK (en tu PC)
+### 2.1 Samsung — APK sideload
 
-Requisitos: Python 3.11+, [Flutter SDK](https://docs.flutter.dev/get-started/install) (Flet lo usa para empaquetar Android), Java JDK.
+**Construir APK (Ubuntu):**
 
 ```bash
-cd gymve
 source .venv/bin/activate
 pip install -r client/requirements.txt
-
 cd client
 flet build apk -v
+# o desde la raíz: ./scripts/build-and-install-apk.sh
 ```
 
-El APK suele quedar en `client/build/apk/` (nombre tipo `app-release.apk`). Consulta la salida de `flet build` si la ruta cambia según la versión de Flet.
+**URL del API en la app** (pantalla de login):
 
-### 2.2 Configurar la URL del API en el teléfono
+| Escenario | URL típica |
+|-----------|------------|
+| PC y Samsung en la misma Wi‑Fi | `https://<túnel>` o `http://192.168.x.x:8000` (HTTP solo si el APK lo permite) |
+| Emulador Android en el PC | `http://10.0.2.2:8000` (host) o `https://gymve.local` con certificado confiable |
+| Producción / fuera de casa | **HTTPS** obligatorio (túnel o dominio propio) |
 
-La app pide la **URL del servidor API** en la pantalla de login, por ejemplo:
+**Instalar sin Play Store:** copia el `.apk` al teléfono → Instalar → permitir fuentes desconocidas si Android lo pide.
 
-| Dónde corre el API | URL típica en el Samsung |
-|--------------------|---------------------------|
-| PC en la misma Wi‑Fi | `http://192.168.1.XX:8000` (IP local del PC) |
-| Emulador Android en el PC | `http://10.0.2.2:8000` |
-| Servidor con túnel HTTPS | `https://tu-dominio.trycloudflare.com` |
+**USB (opcional):** `adb install -r client/build/apk/*.apk`
 
-**Importante:** Android 9+ bloquea HTTP claro por defecto. Para red local:
+Guía emulador en Ubuntu: [emulador-android-ubuntu.md](emulador-android-ubuntu.md).
 
-- Preferible un **túnel HTTPS** (Cloudflare Tunnel, ngrok), o
-- Ajustar la política de red del APK en builds avanzados de Flet/Android (solo si sabes lo que haces).
+### 2.2 iPhone — Safari / PWA (no APK)
 
-Para prueba en casa con HTTP, algunos equipos permiten excepciones; si falla la conexión, usa túnel HTTPS.
+Apple **no permite** instalar un APK/Python empaquetado sin App Store y **Mac + Xcode**. Este proyecto usa **web/PWA**:
 
-### 2.3 Instalar el APK sin Play Store
+1. En el iPhone (Safari), abre la **misma URL HTTPS** que uses para la familia, p. ej. `https://….trycloudflare.com/login` o `https://gymve.local/login` (certificado confiable en el iPhone si es local).
+2. Inicia sesión (misma política de contraseña que el APK).
+3. **Compartir → Añadir a pantalla de inicio** → icono **GymVe**.
 
-1. Copia el `.apk` al Samsung (USB, Drive, Telegram, etc.).
-2. Abre el archivo → **Instalar**.
-3. Si Android pide permiso: **Ajustes → Seguridad → Instalar apps desconocidas** (o “Fuentes desconocidas”) para el navegador o **Mis archivos** que uses.
-4. Abre **GymVe**, pon la URL del API, correo y contraseña.
+**Desde Ubuntu:** no hay simulador iOS usable. Prueba con **iPhone real** en Wi‑Fi + backend accesible (IP LAN con HTTPS difícil; **túnel HTTPS** es lo más simple).
 
-#### Opcional: instalar por USB (adb)
-
-Con [depuración USB](https://developer.android.com/studio/debug/dev-options) activada:
-
-```bash
-adb install -r client/build/apk/app-release.apk
-```
+| Samsung | iPhone |
+|---------|--------|
+| APK + URL API en la app | Safari + `/login` + “Añadir a inicio” |
+| Emulador opcional en Ubuntu | Solo dispositivo real (desde PC Ubuntu) |
 
 ---
 
-## 3. iPhone (iOS) — Web / PWA (no APK)
+## 3. Resumen de URLs
 
-No hay APK en iPhone. Usa **Safari**:
+| Cliente | Qué configurar |
+|---------|----------------|
+| Samsung (APK) | Campo “URL del servidor API” → base HTTPS (sin `/login`) |
+| iPhone (PWA) | Navegar a `{base}/login` |
+| Backend | `DATABASE_URL`, `SESSION_SECRET`, `CORS_ORIGINS` |
 
-1. Asegúrate de que el API sea accesible (misma Wi‑Fi o **túnel HTTPS**; iOS exige HTTPS para muchas funciones PWA fuera de localhost).
-2. Abre `https://…/login` (o `http://IP:8000/login` solo en LAN si Safari lo permite).
-3. Inicia sesión.
-4. **Compartir → Añadir a pantalla de inicio** → icono **GymVe**.
-
-Limitación honesta: un **APK/Python nativo empaquetado para iOS** requiere **Mac + Xcode + cuenta Apple Developer**; este proyecto no publica en App Store, por eso la vía recomendada es **PWA en Safari**.
+La app Flet guarda la URL en almacenamiento del cliente (`client_storage`); **no** guarda contraseñas. Ver [seguridad.md](seguridad.md).
 
 ---
 
-## 4. Acceso desde fuera de casa (túnel)
-
-Ejemplo con Cloudflare Tunnel (gratis):
+## 4. Acceso desde fuera de casa (ambos dispositivos)
 
 ```bash
 cloudflared tunnel --url http://localhost:8000
 ```
 
-Usa la URL `https://….trycloudflare.com` en el Samsung (APK) o en el iPhone (Safari / pantalla de inicio).
+Usa la URL `https://….trycloudflare.com`:
+
+- **iPhone:** Safari → `/login` → pantalla de inicio.
+- **Samsung:** misma URL base en el APK.
+
+Actualiza `CORS_ORIGINS` si cambias de dominio.
 
 ---
 
-## 5. Resumen rápido
+## 5. Solución de problemas
 
-| Dispositivo | Qué instalar | URL |
-|-------------|--------------|-----|
-| Samsung | APK Flet (`flet build apk`) | URL del API en pantalla de login |
-| iPhone | PWA Safari | `/login` del servidor |
-| Backend | Docker Postgres + uvicorn | `DATABASE_URL` en `.env` |
+| Síntoma | Revisar |
+|---------|---------|
+| iPhone no guarda PWA / cookies raras | Usar **HTTPS**, no HTTP en LAN |
+| APK “no conecta” | URL API, firewall puerto 8000, preferir HTTPS |
+| Login rechazado | Política de contraseña; `seed_users.py` |
+| 429 demasiados intentos | Rate limit en login; esperar 1 minuto |
 
-¿Problemas? Revisa que Postgres esté arriba (`docker compose ps`), que hayas hecho `seed_users.py`, y que el firewall del PC permita el puerto **8000** en la red local.
+¿Postgres? `docker compose ps` y `make dev-up`.

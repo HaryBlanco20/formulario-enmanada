@@ -1,0 +1,17 @@
+# HTTPS local para probar PWA (iPhone) y APK (Samsung) contra el mismo backend.
+# Certificados: montar en ./docker/caddy/certs (mkcert o self-signed).
+# Ver docs/seguridad.md y docs/emulador-android-ubuntu.md
+
+{
+	# Desactiva HTTPS automático de Let's Encrypt en dev local
+	auto_https off
+}
+
+https://gymve.local:443 {
+	tls /certs/gymve.local.pem /certs/gymve.local-key.pem
+	reverse_proxy 127.0.0.1:8000
+}
+
+http://gymve.local:80 {
+	redir https://gymve.local{uri} permanent
+}

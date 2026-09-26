@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth import authenticate_user
 from app.config import password_meets_policy
 from app.db import get_db
 from app.models import User
+from app.rate_limit import limiter, login_rate_limit
 from app.schemas import LoginRequest, LoginResponse, UserProfile
 from app.security import create_access_token, get_current_api_user
 
@@ -12,7 +13,12 @@ router = APIRouter(prefix="/api/v1", tags=["api"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def api_login(body: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
+@limiter.limit(login_rate_limit())
+def api_login(
+    request: Request,
+    body: LoginRequest,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
     ok, policy_msg = password_meets_policy(body.password)
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_msg)

@@ -8,6 +8,20 @@ load_dotenv()
 
 SPECIAL_CHARACTERS = set("!@#$%^&*()_+-=[]{}|;:',.<>?/`~\"\\")
 
+KNOWN_WEAK_SECRETS = frozenset(
+    {
+        "",
+        "cambia-esto-por-un-secreto-largo-y-aleatorio-de-al-menos-32",
+        "change-me",
+        "dev-secret-change-me-in-production-min-32-chars",
+        "gymve",
+        "secret",
+        "session_secret",
+    }
+)
+
+DEFAULT_POSTGRES_PASSWORDS = frozenset({"gymve", "postgres", "changeme"})
+
 
 @dataclass(frozen=True)
 class SeedUserSpec:
@@ -15,6 +29,14 @@ class SeedUserSpec:
     password_hash: str | None
     plain_password: str | None
     display_name: str
+
+
+def get_gymve_env() -> str:
+    return os.getenv("GYMVE_ENV", "development").strip().lower()
+
+
+def is_production() -> bool:
+    return get_gymve_env() in ("production", "prod")
 
 
 def password_meets_policy(password: str) -> tuple[bool, str]:
@@ -32,25 +54,69 @@ def normalize_email(email: str) -> str:
 def get_database_url() -> str:
     url = os.getenv(
         "DATABASE_URL",
-        "postgresql+psycopg://gymve:gymve@localhost:5432/gymve",
+        "postgresql+psycopg://gymve_app:gymve_app_dev_only@localhost:5432/gymve",
     ).strip()
     if not url:
         raise RuntimeError("DATABASE_URL no está configurada.")
     return url
 
 
+def _secret_from_env(name: str) -> str:
+    return os.getenv(name, "").strip()
+
+
+def validate_security_config() -> None:
+    """Fallar al arrancar en producción si la configuración es insegura."""
+    session = _secret_from_env("SESSION_SECRET")
+    jwt = _secret_from_env("JWT_SECRET")
+
+    if is_production():
+        if len(session) < 32 or session.lower() in KNOWN_WEAK_SECRETS:
+            raise RuntimeError(
+                "En GYMVE_ENV=production, SESSION_SECRET debe ser aleatorio (≥32 caracteres) "
+                "y distinto de valores de ejemplo."
+            )
+        if jwt and (len(jwt) < 32 or jwt.lower() in KNOWN_WEAK_SECRETS):
+            raise RuntimeError(
+                "En GYMVE_ENV=production, JWT_SECRET debe ser aleatorio (≥32 caracteres)."
+            )
+        origins = get_cors_origins()
+        if not origins or "*" in origins:
+            raise RuntimeError(
+                "En GYMVE_ENV=production, CORS_ORIGINS debe listar orígenes explícitos "
+                "(PWA iPhone + URL del API), sin '*'."
+            )
+        if os.getenv("GYMVE_ALLOW_INSECURE_DEV", "").strip().lower() in ("1", "true", "yes"):
+            raise RuntimeError(
+                "GYMVE_ALLOW_INSECURE_DEV no puede estar activo en producción."
+            )
+    elif len(session) < 32:
+        raise RuntimeError("SESSION_SECRET debe tener al menos 32 caracteres.")
+
+
 def get_session_secret() -> str:
-    secret = os.getenv("SESSION_SECRET", "").strip()
+    validate_security_config()
+    secret = _secret_from_env("SESSION_SECRET")
     if len(secret) < 32:
         raise RuntimeError("SESSION_SECRET debe tener al menos 32 caracteres.")
     return secret
 
 
 def get_jwt_secret() -> str:
-    secret = os.getenv("JWT_SECRET", "").strip()
+    secret = _secret_from_env("JWT_SECRET")
     if len(secret) >= 32:
         return secret
     return get_session_secret()
+
+
+def session_https_only() -> bool:
+    if is_production():
+        return True
+    return os.getenv("GYMVE_SESSION_HTTPS_ONLY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
 
 def get_app_host() -> str:
@@ -66,6 +132,10 @@ def get_cors_origins() -> list[str]:
     if raw == "*":
         return ["*"]
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def get_login_rate_limit() -> str:
+    return os.getenv("GYMVE_LOGIN_RATE_LIMIT", "10/minute").strip()
 
 
 def load_seed_users() -> list[SeedUserSpec]:

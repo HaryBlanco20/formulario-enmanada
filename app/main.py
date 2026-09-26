@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -18,9 +20,13 @@ from app.config import (
     get_session_secret,
     normalize_email,
     password_meets_policy,
+    session_https_only,
+    validate_security_config,
 )
 from app.db import Base, engine, get_db
+from app.middleware_security import SecurityHeadersMiddleware
 from app.models import User
+from app.rate_limit import limiter, login_rate_limit
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -28,18 +34,27 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    validate_security_config()
     Base.metadata.create_all(bind=engine)
     yield
 
 
 app = FastAPI(title="GymVe", docs_url=None, redoc_url=None, lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=get_session_secret(), https_only=False)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=get_session_secret(),
+    https_only=session_https_only(),
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(api_router)
@@ -76,6 +91,7 @@ async def login_page(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/login", response_class=HTMLResponse)
+@limiter.limit(login_rate_limit())
 async def login_submit(
     request: Request,
     email: str = Form(...),

@@ -1,96 +1,96 @@
 # GymVe
 
-Aplicación **Python** privada para la familia (iPhone y Android), **sin publicación** en App Store ni Play Store.
+Aplicación **Python** privada para la familia (**Samsung Android** + **iPhone iOS**), sin publicación en tiendas.
 
-**Stack canónico:** **FastAPI + PostgreSQL** (servidor) y **Flet** (APK Android). **iPhone:** web/PWA en Safari. Login en español, 4 usuarios, contraseña ≥10 caracteres + carácter especial.
+| Dispositivo | Cliente |
+|-------------|---------|
+| **Samsung** | APK **Flet** (`client/`) — sideload |
+| **iPhone** | **Safari / PWA** — mismo backend `/login` |
 
-> La carpeta [`mobile/`](mobile/) (Expo/React Native + Supabase) quedó **obsoleta** respecto a este README; no la uses para nuevas funciones. El backend Python y Postgres sustituyen Supabase para auth.
+> [`mobile/`](mobile/) (Expo + Supabase) está **obsoleto**; el stack canónico es FastAPI + Postgres + Flet + web PWA.
 
-Guía de instalación en celulares: **[docs/instalar-en-celular.md](docs/instalar-en-celular.md)**
+**Guías**
 
-## Arquitectura
+- [Instalar en celular (Samsung + iPhone)](docs/instalar-en-celular.md)
+- [Emulador Android en Ubuntu (+ notas iPhone)](docs/emulador-android-ubuntu.md)
+- [Seguridad](docs/seguridad.md)
 
-| Componente | Tecnología | Uso |
-|------------|------------|-----|
-| API + web | FastAPI, SQLAlchemy, Jinja | Login web, `/api/v1/*` para el APK |
-| Base de datos | PostgreSQL 16 (Docker) | Emails y hashes bcrypt |
-| Android (Samsung) | Flet → `flet build apk` | Cliente en `client/` |
-| iOS | Safari PWA | Misma URL `/login` del servidor |
-
-## Requisitos
-
-- Python 3.11+
-- Docker y Docker Compose (PostgreSQL local)
-- Para APK: Flutter SDK + JDK (ver guía Flet)
-
-## Puesta en marcha
+## Quick start (Ubuntu)
 
 ```bash
 cp .env.example .env
-# SESSION_SECRET (≥32 chars) + GYMVE_USER_*_PASSWORD_HASH (4 usuarios)
+# Edita secretos, POSTGRES_* y hashes bcrypt de los 4 usuarios
 
-docker compose up -d
-
-python3 -m venv .venv
+make dev-up          # Postgres healthy → init_db → seed (idempotente)
 source .venv/bin/activate
-pip install -r requirements.txt
-
-python scripts/init_db.py
-python scripts/seed_users.py
-
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Web: [http://127.0.0.1:8000/login](http://127.0.0.1:8000/login)
+- Web / iPhone: `http://127.0.0.1:8000/login` (en iPhone real usa **HTTPS** — túnel o Caddy; ver docs).
+- Health: `/health`
 
-### Generar hash bcrypt
+HTTPS local opcional: certificados en `docker/caddy/certs/` → `make dev-proxy`.
+
+## Samsung (APK) vs iPhone (PWA)
+
+| | Samsung | iPhone |
+|---|---------|--------|
+| Instalación | `flet build apk` + sideload | Safari → **Añadir a pantalla de inicio** |
+| Dev en Ubuntu | Emulador Android + `adb` | **iPhone físico** + URL HTTPS (no simulador iOS) |
+| Auth API | JWT (`/api/v1/login`) | Cookie de sesión web |
 
 ```bash
-python scripts/hash_password.py
+./scripts/build-and-install-apk.sh   # Samsung / emulador
 ```
 
-**No guardes contraseñas en texto plano en el repositorio.** Solo hashes en `.env` (gitignored) o variables de despliegue.
+## Seguridad (resumen)
 
-### API (cliente Flet)
+- `GYMVE_ENV=production` exige secretos fuertes y `CORS_ORIGINS` explícitos.
+- Rate limit en login; política de contraseña en servidor.
+- `./scripts/security-check.sh`
+
+Detalle: [docs/seguridad.md](docs/seguridad.md).
+
+## Emulador Android
+
+Requisitos: KVM, SDK Android, licencias aceptadas. Ver [docs/emulador-android-ubuntu.md](docs/emulador-android-ubuntu.md).
+
+```bash
+export ANDROID_AVD=Pixel_7_API_34
+./scripts/run-android-emulator.sh
+```
+
+## API (cliente Flet)
 
 ```text
 POST /api/v1/login   {"email","password"}  → access_token
 GET  /api/v1/me      Authorization: Bearer …
 ```
 
-## Cliente Android (Flet)
-
-```bash
-pip install -r client/requirements.txt
-cd client
-export GYMVE_API_BASE_URL=http://192.168.1.XX:8000   # opcional en dev
-flet run .                    # prueba en escritorio
-flet build apk -v             # APK sideload (Samsung, sin Play Store)
-```
-
-En el Samsung, indica la **URL del API** en la pantalla de login (IP LAN o túnel HTTPS).
-
 ## Estructura
 
 ```text
-app/              Backend FastAPI + plantillas web
-client/           App Flet (APK)
-scripts/          init_db, seed_users, hash_password
-docker-compose.yml
+app/                 FastAPI + plantillas PWA
+client/              Flet (APK Samsung)
+docker/              Postgres init, Caddy
+scripts/             dev-up, seed, emulador, security-check
 docs/
-mobile/           Legacy Expo (deprecated)
-index.html        Legacy formulario En Manada
+mobile/              Legacy Expo (deprecated)
 ```
 
 ## Calidad
 
 ```bash
 pip install ruff
-ruff check app scripts client/main.py
+make lint
+make compose-config
 ```
 
-## Variables de entorno
+## Producción (checklist)
 
-Ver [.env.example](.env.example): `DATABASE_URL`, `SESSION_SECRET`, usuarios para seed.
+1. `GYMVE_ENV=production`, secretos rotados, `CORS_ORIGINS` con HTTPS del túnel/dominio.
+2. Postgres con contraseñas fuertes; backups del volumen `gymve_pgdata`.
+3. HTTPS delante del API (Caddy, nginx o túnel).
+4. Esquema: [docs/schema-versioning.md](docs/schema-versioning.md).
 
 Licencia: uso privado familiar.
